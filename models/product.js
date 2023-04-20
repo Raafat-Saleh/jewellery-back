@@ -6,7 +6,7 @@ const Schema = mongoose.Schema;
 
 const productSchema = new Schema(
   {
-    title: { type: String, required: true },
+    title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
     image1: { type: String, required: true },
     image2: { type: String, required: true },
@@ -24,6 +24,8 @@ const productSchema = new Schema(
 
     features: { type: String, required: true, trim: true },
     caliber: { type: String, required: true },
+
+    views: { type: Number, default: 1 },
 
     store: { type: String, required: true },
     creator: {

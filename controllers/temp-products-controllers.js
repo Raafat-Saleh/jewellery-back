@@ -1,11 +1,10 @@
 /** @format */
 
 const HttpError = require("../models/http-error");
-const User = require("../models/user");
 const Product = require("../models/product");
 const TempProduct = require("../models/temp-product");
+const Bin = require("../models/bin");
 
-//[ADD
 const createTempProduct = async (req, res, next) => {
   if (req.user.accountType == "seller") {
     const createdTempProduct = new TempProduct({
@@ -26,7 +25,8 @@ const createTempProduct = async (req, res, next) => {
     res.status(500).json({ message: "Not Allowed." });
   }
 };
-// Auth &&Admin check
+
+//Admin
 const getTempProductsForAdd = async (req, res, next) => {
   try {
     const temp_products = await TempProduct.find({ method: "add" });
@@ -38,9 +38,7 @@ const getTempProductsForAdd = async (req, res, next) => {
     return next(error);
   }
 };
-//ADD]
 
-//[EDIT
 const updateTempProduct = async (req, res, next) => {
   try {
     const product = await Product.findOne({
@@ -51,7 +49,24 @@ const updateTempProduct = async (req, res, next) => {
       return res.status(404).send("product not found");
     }
     const updates = Object.keys(req.body);
-    const allowedUpdates = ["description", "title"]; //-creator
+    const allowedUpdates = [
+      "description",
+      "title",
+      "image1",
+      "image2",
+      "image3",
+      "image4",
+      "price",
+      "stock",
+      "discount",
+      "end_date",
+      "tags",
+      "category",
+      "model",
+      "features",
+      "caliber",
+      "store",
+    ];
     const isValidOperation = updates.every((update) =>
       allowedUpdates.includes(update)
     );
@@ -74,7 +89,8 @@ const updateTempProduct = async (req, res, next) => {
     res.status(400).send(e);
   }
 };
-// Auth &&Admin check
+
+//Admin
 const getTempProductsForEdit = async (req, res, next) => {
   try {
     const temp_products = await TempProduct.find({ method: "edit" });
@@ -86,37 +102,74 @@ const getTempProductsForEdit = async (req, res, next) => {
     return next(error);
   }
 };
-//EDIT]
 
-// Auth &&Admin check
-const deleteOneTempProduct = async (req, res, next) => {
-  const tempProductId = req.params.pid;
-
+//this for send bin
+const deleteProductFromSeller = async (req, res, next) => {
   try {
-    const temp_product = await TempProduct.findById(tempProductId);
+    const product = await Product.findOneAndDelete({
+      _id: req.params.pid,
+      creator: req.user._id,
+    });
 
-    if (!temp_product) {
-      const error = new HttpError("not find temp_product for id.", 404);
-      return next(error);
+    if (!product) {
+      res.status(404).send();
     }
 
-    await temp_product.remove();
+    let obj = product.toObject();
+    delete obj._id;
+    const bin = new Bin(obj);
+
+    await bin.save();
+    res.status(200).json({ message: "Deleted product. and Added to bin" });
+  } catch (e) {
+    res.status(500).send();
+  }
+};
+
+const deleteOneTempProduct = async (req, res, next) => {
+  try {
+    const temp_product = await TempProduct.findOneAndDelete({
+      _id: req.params.pid,
+      creator: req.user._id,
+    });
+
+    if (!temp_product) {
+      res.status(404).send();
+    }
+
+    res
+      .status(200)
+      .json({ message: "Deleted temp_product.", temp_product: temp_product });
+  } catch (err) {
+    res.status(500).send();
+  }
+};
+
+const deleteAllTempProductForUser = async (req, res, next) => {
+  let countTempProduct;
+  try {
+    countTempProduct = await TempProduct.deleteMany({
+      creator: req.body.creator,
+    });
   } catch (err) {
     const error = new HttpError(
-      "Something went wrong, could not delete temp_product.",
+      "Something went wrong, could not delete All temp_products.",
       500
     );
     return next(error);
   }
-
-  res.status(200).json({ message: "Deleted temp_product." });
+  res.status(200).json({
+    message: `Deleted ${countTempProduct.deletedCount} temp_products`,
+  });
 };
-// Auth &&Admin check
 
+// Admin
 const deleteAllTempProduct = async (req, res, next) => {
   let countTempProduct;
   try {
-    countTempProduct = await TempProduct.deleteMany({});
+    countTempProduct = await TempProduct.deleteMany({
+      creator: req.user._id,
+    });
   } catch (err) {
     const error = new HttpError(
       "Something went wrong, could not delete All temp_products.",
@@ -133,5 +186,9 @@ exports.createTempProduct = createTempProduct;
 exports.getTempProductsForAdd = getTempProductsForAdd;
 exports.updateTempProduct = updateTempProduct;
 exports.getTempProductsForEdit = getTempProductsForEdit;
+
+exports.deleteProductFromSeller = deleteProductFromSeller;
+exports.deleteAllTempProductForUser = deleteAllTempProductForUser;
+
 exports.deleteOneTempProduct = deleteOneTempProduct;
 exports.deleteAllTempProduct = deleteAllTempProduct;

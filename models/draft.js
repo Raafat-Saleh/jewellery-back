@@ -4,13 +4,13 @@ const mongoose = require("mongoose");
 
 const Schema = mongoose.Schema;
 
-const tempProductSchema = new Schema(
+const draftSchema = new Schema(
   {
-    title: { type: String, required: true, trim: true },
-    description: { type: String, required: true, trim: true },
+    title: { type: String },
+    description: { type: String },
     image1: { type: String },
     image2: { type: String },
-    image3: { type: String, trim: true },
+    image3: { type: String },
     image4: { type: String },
 
     price: { type: String },
@@ -18,15 +18,12 @@ const tempProductSchema = new Schema(
     discount: { type: String },
     end_date: { type: String },
 
-    tags: [{ type: String }], ////////
+    tags: [{ type: String }],
     category: { type: String },
     model: { type: String },
 
     features: { type: String },
     caliber: { type: String },
-
-    method: { type: String },
-    old_product_id: { type: String },
 
     store: { type: String },
     creator: {
@@ -37,5 +34,5 @@ const tempProductSchema = new Schema(
   { timestamps: true }
 );
 
-const TempProduct = mongoose.model("Temp_products", tempProductSchema);
-module.exports = TempProduct;
+const Draft = mongoose.model("Draft", draftSchema);
+module.exports = Draft;

@@ -8,7 +8,7 @@ const Schema = mongoose.Schema;
 const commentSchema = new Schema({
   blog_id: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
+    ref: "Blog",
   },
 
   date: { type: String },
@@ -40,16 +40,12 @@ const commentSchema = new Schema({
   },
 });
 
+// -parent
 commentSchema.pre("find", function (next) {
-  // if (this.options._recursed) {
-  //   return next();
-  // }
-  this.populate({ path: "replies", select: "-parent" }).populate({
+  this.populate({ path: "replies", select: "" }).populate({
     path: "user",
-    select: "firstName lastName store avatar",
+    select: "firstName lastName avatar",
   });
-
-  //, options: { _recursed: true } , select: "age email comment"
   next();
 });
 

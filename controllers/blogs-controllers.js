@@ -1,82 +1,99 @@
 /** @format */
 
-const HttpError = require("../models/http-error");
 const Blog = require("../models/blog");
+const TempBlog = require("../models/temp-blog");
 const User = require("../models/user");
-const Comment = require("../models/comment");
+
+const getBlogById = async (req, res, next) => {
+  try {
+    const blog = await Blog.findOne({ _id: req.params.id });
+
+    if (!blog) {
+      return res.status(404).send("Could not find a blog for the provided id.");
+    }
+    blog.views += 1;
+    await blog.save();
+
+    await blog
+      .populate("comments")
+      .populate({ path: "user", select: "firstName lastName store avatar" })
+      .execPopulate();
+
+    res.json({ blog: blog, comments: blog.comments });
+  } catch (e) {
+    res.status(500).send("Something went wrong, could not find a blog.");
+  }
+};
 
 const createBlog = async (req, res, next) => {
-  const createdBlog = new Blog(req.body);
   try {
-    await createdBlog.save();
-  } catch (err) {
-    const error = new HttpError("Creating blog failed, please try again.", 500);
-    return next(error);
-  }
+    const user = await User.findById(req.body.user);
+    if (!user) {
+      return res.status(404).send("No user is found");
+    }
 
-  res.status(201).json({ blog: createdBlog });
+    let id = req.body._id;
+    delete req.body._id;
+
+    const createdBlog = new Blog(req.body);
+
+    if (id) {
+      const tempBlog = await TempBlog.findById(id);
+      if (!tempBlog) {
+        return res.status(404).send("No temp blog is found");
+      }
+      await createdBlog.save();
+      await tempBlog.remove();
+    } else {
+      await createdBlog.save();
+    }
+
+    res.status(201).json({ blog: createdBlog });
+  } catch (e) {
+    res.status(400).send(e);
+  }
 };
 
-/////------------------//////
-const makeComment = async (req, res, next) => {
+const updateBlog = async (req, res, next) => {
   try {
     const blog = await Blog.findOne({
-      _id: req.params.bid,
+      _id: req.body.old_blog_id,
+      user: req.body.user,
     });
+
     if (!blog) {
-      return res.status(404).send("blog not found");
+      return res.status(404).send();
     }
 
-    const comment = new Comment({
-      ...req.body,
-      blog_id: req.params.bid,
-      user: req.user._id,
-    });
+    let id = req.body._id;
+    delete req.body._id;
+    delete req.body.old_blog_id;
+    delete req.body.user;
+    delete req.body.method;
+    delete req.body.__v;
 
-    await comment.save();
-    res.status(201).send({ comment });
-  } catch (e) {
-    res.status(400).send(e.message);
-  }
-};
-
-const makeReply = async (req, res, next) => {
-  try {
-    const reply = new Comment({
-      ...req.body,
-      user: req.user._id,
-      parent: req.params.cid,
-    });
-
-    const comment = await Comment.updateOne(
-      { _id: req.params.cid },
-      { $push: { replies: reply._id } }
-    );
-
-    if (!comment.n) {
-      return res.status(404).send("comment not found");
+    // dont allow delete all images or all tags at least one image and  one tag
+    if (req.body.images) {
+      if (req.body.images.length == 0) {
+        delete req.body.images;
+      }
     }
-
-    await reply.save();
-    res.status(201).send({ reply: reply });
-  } catch (e) {
-    res.status(400).send(e.message);
-  }
-};
-
-const editComment = async (req, res, next) => {
-  try {
-    const comment = await Comment.findOne({
-      _id: req.params.cid,
-      user: req.user._id,
-    });
-
-    if (!comment) {
-      return res.status(404).send("comment not found");
+    if (req.body.tags) {
+      if (req.body.tags.length == 0) {
+        delete req.body.tags;
+      }
     }
 
     const updates = Object.keys(req.body);
-    const allowedUpdates = ["comment", "date"];
+    const allowedUpdates = [
+      "description",
+      "title",
+      "image",
+      "images",
+      "content",
+      "tags",
+      "date",
+    ];
     const isValidOperation = updates.every((update) =>
       allowedUpdates.includes(update)
     );
@@ -84,68 +101,69 @@ const editComment = async (req, res, next) => {
       return res.status(400).send({ error: "Invalid updates!" });
     }
 
-    updates.forEach((update) => (comment[update] = req.body[update]));
-    await comment.save();
-    res.status(200).json({ comment: comment });
+    updates.forEach((update) => (blog[update] = req.body[update]));
+    // may edit with no temp
+    if (id) {
+      const tempBlog = await TempBlog.findById(id);
+      if (!tempBlog) {
+        return res.status(404).send("No temp blog is found");
+      }
+      await blog.save();
+      await tempBlog.remove();
+    } else {
+      await blog.save();
+    }
+
+    res.status(200).json({ blog: blog });
   } catch (e) {
-    res.status(400).send(e.message);
+    res.status(400).send(e);
   }
 };
 
-const getBlog = async (req, res, next) => {
+const createNotification = async (req, res, next) => {
   try {
-    const blog = await Blog.findOne({
+    let my_object = {};
+    my_object.message = "stack";
+    my_object.title = "stack";
+    my_object.tempBlogID = "123";
+    const user = await User.findById(req.body.user_id);
+    if (!user) {
+      return res.status(404).send("No user is found");
+    }
+    user.notification.push(my_object);
+    await user.save();
+    res.status(201).json({ user: user });
+  } catch (e) {
+    res.status(400).send(e);
+  }
+};
+
+const deleteBlog = async (req, res, next) => {
+  try {
+    const blog = await Blog.findOneAndDelete({
       _id: req.params.id,
+      user: req.user._id,
     });
 
     if (!blog) {
-      return res.status(404).send("No blog is found");
+      res.status(404).send();
     }
-
-    await blog
-      .populate("comments")
-      .populate({ path: "user", select: "firstName lastName store avatar" })
-      .execPopulate();
-    res.send({ blog: blog, comments: blog.comments });
+    res.status(200).json({ message: "Deleted blog." });
   } catch (e) {
     res.status(500).send();
   }
 };
 
-const deleteComment = async (req, res, next) => {
-  let comment;
-  try {
-    comment = await Comment.findOneAndDelete({
-      _id: req.params.cid,
-      user: req.user._id,
-    });
-  } catch (e) {
-    res.status(500).send(e.message);
-  }
-
-  if (!comment) {
-    res.status(404).send("comment not found");
-  }
-
-  /////
-  if (!comment.replies.length < 1) {
-    await Comment.deleteMany({ _id: { $in: comment.replies } });
-  }
-
-  if (comment.parent) {
-    await Comment.updateOne(
-      { _id: comment.parent },
-      { $pullAll: { replies: [req.params.cid] } }
-    );
-  }
-
-  res.status(200).json({ message: "Deleted comment." });
+const getBlogs = async (req, res, next) => {
+  const blogs = await Blog.find({});
+  res.json({
+    blogs: blogs.map((blog) => blog),
+  });
 };
 
+exports.getBlogById = getBlogById;
+exports.getBlogs = getBlogs;
 exports.createBlog = createBlog;
-
-exports.makeComment = makeComment;
-exports.makeReply = makeReply;
-exports.editComment = editComment;
-exports.getBlog = getBlog;
-exports.deleteComment = deleteComment;
+exports.updateBlog = updateBlog;
+exports.deleteBlog = deleteBlog;
+exports.createNotification = createNotification;

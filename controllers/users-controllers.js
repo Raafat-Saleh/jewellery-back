@@ -1,30 +1,27 @@
 /** @format */
 
-const HttpError = require("../models/http-error");
 const User = require("../models/user");
-const Product = require("../models/product");
+
+const mainOption = require("../models/main-option.json").main_option;
 
 const getUsers = async (req, res, next) => {
-  let users;
   try {
-    users = await User.find({}, "-isAdmin");
+    const users = await User.find({}, "-isAdmin");
+    res.status(200).send({ users: users });
   } catch (err) {
-    const error = new HttpError(
-      "Fetching users failed, please try again later.",
-      500
-    );
-    return next(error);
+    res.status(400).send(err.message);
   }
-  res.status(200).send({ users: users });
 };
 
 const signup = async (req, res, next) => {
-  const user = new User(req.body);
-
-  if (!user.avatar) {
-    user.avatar = user.gender == "male" ? "a.jpg" : "b.jpg";
-  }
   try {
+    const user = new User(req.body);
+
+    if (!user.avatar) {
+      user.avatar =
+        user.gender == "male" ? mainOption.male_image : mainOption.female_image;
+    }
+
     await user.save();
     const token = await user.generateAuthToken();
     res.status(201).send({ user, token });
@@ -40,14 +37,9 @@ const login = async (req, res, next) => {
       req.body.password
     );
     const token = await user.generateAuthToken();
-    if (!user) {
-      const error = new HttpError("No user Found", 500);
-      return next(error);
-    }
     res.send({ user, token });
   } catch (e) {
-    const error = new HttpError(e.message, 400);
-    return next(error);
+    res.status(400).send(e.message);
   }
 };
 
@@ -76,12 +68,8 @@ const updateUser = async (req, res, next) => {
 
 const deleteUser = async (req, res, next) => {
   try {
-    const user = await User.findByIdAndDelete(req.user._id);
-    if (!user) {
-      return res.status(404).send("No user is found to delete");
-    }
-    // await req.user.remove()
-    res.status(200).send("Deleted Successfully");
+    await req.user.remove();
+    res.status(200).send(req.user);
   } catch (e) {
     res.status(500).send(e.message);
   }
@@ -94,7 +82,7 @@ const logout = async (req, res, next) => {
     });
     await req.user.save();
 
-    res.status(200).send("Signed out");
+    res.status(200).send("Log out");
   } catch (e) {
     res.status(500).send(e);
   }
@@ -104,19 +92,16 @@ const logoutAll = async (req, res, next) => {
   try {
     req.user.tokens = [];
     await req.user.save();
-    res.status(200).send("Signed out from all devices");
+    res.status(200).send("Log out from all devices");
   } catch (e) {
     res.status(500).send(e);
   }
 };
 
 const getMe = async (req, res, next) => {
-  // res.send(req.user)
   try {
-    const products = await Product.find({
-      creator: req.user._id,
-    });
-    res.status(200).send({ profile: req.user, products: products });
+    await req.user.populate("products").execPopulate();
+    res.send({ user: req.user, products: req.user.products });
   } catch (e) {
     res.status(400).send(e.message);
   }
@@ -136,45 +121,32 @@ const getUser = async (req, res, next) => {
   } catch (e) {
     res.status(500).send();
   }
-  // const products = await Product.find({
-  //   creator: req.params.id,
-  // });
-  // res.send(req.user)
 };
 
 //------------------------------------------------survey (rate-opinion)------------------------//
 const makeSurvey = async (req, res, next) => {
-  const { rate, opinion } = req.body;
-  req.user.rate = rate;
-  req.user.opinion = opinion;
   try {
+    const { rate, opinion } = req.body;
+    req.user.rate = rate;
+    req.user.opinion = opinion;
+
     await req.user.save();
+    res.status(200).send(`rate && opinion was added`);
   } catch (err) {
-    const error = new HttpError("Something went wrong", 500);
-    return next(error);
+    res.status(500).send(err);
   }
-  res.status(200).json({
-    message: `rate :${req.user.rate} && opinion :${req.user.opinion} was added`,
-  });
 };
 
-//------------------------------------------------All_surveys rate>2--------------------------//
 const getSurveys = async (req, res, next) => {
-  console.log("surveyUsers");
-
-  // try {
-  // let surveyUsers;
-  // surveyUsers = await User.find({}, "firstName avatar rate opinion");
-  console.log("surveyUsers");
-  next();
-  // } catch (err) {
-  //   const error = new HttpError(
-  //     "Fetching surveys failed, please try again later.",
-  //     500
-  //   );
-  //   return next(error);
-  // }
-  // res.json({ users: "users" });
+  try {
+    const users = await User.find(
+      { rate: { $gte: 3 } },
+      "firstName avatar rate opinion"
+    );
+    res.json({ users: users });
+  } catch (err) {
+    res.status(500).send(err);
+  }
 };
 
 exports.getUsers = getUsers;

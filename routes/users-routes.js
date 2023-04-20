@@ -23,11 +23,10 @@ router.post("/logout", auth, usersController.logout);
 
 router.post("/logoutAll", auth, usersController.logoutAll);
 
-router.get("/:id", usersController.getUser);
+router.get("/surveys", usersController.getSurveys);
 
-//surveys  (rate -- opinion)
 router.post("/survey", auth, usersController.makeSurvey);
 
-router.get("/surveys", usersController.getSurveys);
+router.get("/:id", usersController.getUser);
 
 module.exports = router;
